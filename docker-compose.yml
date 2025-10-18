@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Veritabanı
+  db:
+    image: postgres:15-alpine
+    container_name: cardiyovask_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-cardiyovask_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-12345}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./create_appointments_table.py:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - cardiyovask_network
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: cardiyovask_backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-12345}@db:5432/${DB_NAME:-cardiyovask_db}
+      DB_HOST: db
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-cardiyovask_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-12345}
+      
+      # API
+      API_HOST: 0.0.0.0
+      API_PORT: ${API_PORT:-8000}
+      DEBUG: ${DEBUG:-True}
+      
+      # JWT
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-this-in-production-12345}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-True}
+      CORS_ALLOW_METHODS: ${CORS_ALLOW_METHODS:-*}
+      CORS_ALLOW_HEADERS: ${CORS_ALLOW_HEADERS:-*}
+      
+      # Model
+      MODELS_DIR: ${MODELS_DIR:-models}
+      DATA_FILE: ${DATA_FILE:-src/data/cardiokaggle.csv}
+      USE_GPU: ${USE_GPU:-False}
+      GPU_DEVICE_ID: ${GPU_DEVICE_ID:-0}
+      
+      # Model Parameters
+      TEST_SIZE: ${TEST_SIZE:-0.2}
+      RANDOM_STATE: ${RANDOM_STATE:-42}
+      CV_FOLDS: ${CV_FOLDS:-5}
+      USE_ADVANCED_FEATURES: ${USE_ADVANCED_FEATURES:-True}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      - db
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    networks:
+      - cardiyovask_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: cardiyovask_frontend
+    environment:
+      REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    networks:
+      - cardiyovask_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  cardiyovask_network:
+    driver: bridge

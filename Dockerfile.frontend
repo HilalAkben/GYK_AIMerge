@@ -1,0 +1,35 @@
+# Frontend Dockerfile
+FROM node:18-alpine as build
+
+# Çalışma dizinini ayarla
+WORKDIR /app
+
+# Package dosyalarını kopyala
+COPY frontend/package*.json ./
+
+# Bağımlılıkları yükle
+RUN npm ci --only=production
+
+# Kaynak kodları kopyala
+COPY frontend/ .
+
+# Environment değişkenleri
+ENV REACT_APP_API_BASE_URL=http://localhost:8000/api/v1
+
+# Uygulamayı build et
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Build dosyalarını nginx'e kopyala
+COPY --from=build /app/build /usr/share/nginx/html
+
+# Nginx konfigürasyonunu kopyala
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Port'u expose et
+EXPOSE 3000
+
+# Nginx'i başlat
+CMD ["nginx", "-g", "daemon off;"]

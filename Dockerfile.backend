@@ -1,0 +1,49 @@
+# Backend Dockerfile
+FROM python:3.10-slim
+
+# Çalışma dizinini ayarla
+WORKDIR /app
+
+# Sistem paketlerini güncelle ve gerekli paketleri yükle
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python bağımlılıklarını kopyala ve yükle
+COPY api/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Uygulama kodunu kopyala
+COPY api/ ./api/
+COPY src/ ./src/
+COPY data/ ./data/
+COPY models/ ./models/
+
+# Main.py dosyasını ana dizine kopyala
+COPY api/main.py ./main.py
+
+# Environment değişkenleri için varsayılan değerler
+ENV PYTHONPATH=/app:/app/api
+ENV DATABASE_URL=postgresql://postgres:12345@db:5432/cardiyovask_db
+ENV DB_HOST=db
+ENV DB_PORT=5432
+ENV DB_NAME=cardiyovask_db
+ENV DB_USER=postgres
+ENV DB_PASSWORD=12345
+ENV SECRET_KEY=your-secret-key-change-this-in-production-12345
+ENV DEBUG=True
+ENV API_HOST=0.0.0.0
+ENV API_PORT=8000
+ENV CORS_ORIGINS=*
+ENV CORS_ALLOW_CREDENTIALS=True
+ENV CORS_ALLOW_METHODS=*
+ENV CORS_ALLOW_HEADERS=*
+
+# Port'u expose et
+EXPOSE 8000
+
+# Uygulamayı başlat
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
